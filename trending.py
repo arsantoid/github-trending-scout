@@ -58,45 +58,41 @@ def scrape_trending(since="daily"):
     return repos
 
 
-def format_discord_message(daily, weekly):
+def format_discord_message(daily):
     """Format trending data into Discord embed."""
     now = datetime.now(WIB)
     
+    fields = []
+    for i, r in enumerate(daily[:20], 1):
+        value = f"⭐ {r['stars']} ({r['period_stars']})\n{r['desc'][:120]}"
+        fields.append({
+            "name": f"{i}. [{r['name']}]({r['url']})",
+            "value": value,
+            "inline": False
+        })
+    
+    # Split into 2 embeds (Discord max 25 fields per embed)
     embeds = []
-    
-    # Daily embed
-    daily_fields = []
-    for i, r in enumerate(daily[:15], 1):
-        value = f"⭐ {r['stars']} ({r['period_stars']})\n{r['desc'][:100]}"
-        daily_fields.append({
-            "name": f"{i}. [{r['name']}]({r['url']})",
-            "value": value,
-            "inline": False
+    if len(fields) > 10:
+        embeds.append({
+            "title": "🔥 GitHub Trending — Top 10",
+            "color": 0xff6b35,
+            "fields": fields[:10],
+            "footer": {"text": f"Generated {now.strftime('%d %b %Y %H:%M WIB')}"}
         })
-    
-    embeds.append({
-        "title": "🔥 GitHub Trending — Hari Ini",
-        "color": 0xff6b35,
-        "fields": daily_fields[:10],  # Discord limit 25 fields
-        "footer": {"text": f"Generated {now.strftime('%d %b %Y %H:%M WIB')}"}
-    })
-    
-    # Weekly embed
-    weekly_fields = []
-    for i, r in enumerate(weekly[:15], 1):
-        value = f"⭐ {r['stars']} ({r['period_stars']})\n{r['desc'][:100]}"
-        weekly_fields.append({
-            "name": f"{i}. [{r['name']}]({r['url']})",
-            "value": value,
-            "inline": False
+        embeds.append({
+            "title": "🔥 GitHub Trending — #11-20",
+            "color": 0xff6b35,
+            "fields": fields[10:],
+            "footer": {"text": f"Generated {now.strftime('%d %b %Y %H:%M WIB')}"}
         })
-    
-    embeds.append({
-        "title": "📈 GitHub Trending — Minggu Ini",
-        "color": 0x4caf50,
-        "fields": weekly_fields[:10],
-        "footer": {"text": f"Generated {now.strftime('%d %b %Y %H:%M WIB')}"}
-    })
+    else:
+        embeds.append({
+            "title": "🔥 GitHub Trending Hari Ini",
+            "color": 0xff6b35,
+            "fields": fields,
+            "footer": {"text": f"Generated {now.strftime('%d %b %Y %H:%M WIB')}"}
+        })
     
     return {"embeds": embeds}
 
@@ -126,25 +122,18 @@ def main():
         daily = scrape_trending("daily")
         print(f"  Daily: {len(daily)} repos")
     except Exception as e:
-        print(f"⚠️ Daily trending failed: {e}")
-        daily = []
+        print(f"❌ Daily trending failed: {e}")
+        exit(1)
     
-    try:
-        weekly = scrape_trending("weekly")
-        print(f"  Weekly: {len(weekly)} repos")
-    except Exception as e:
-        print(f"⚠️ Weekly trending failed: {e}")
-        weekly = []
-    
-    if not daily and not weekly:
+    if not daily:
         print("❌ No data scraped")
         exit(1)
     
-    payload = format_discord_message(daily, weekly)
+    payload = format_discord_message(daily)
     
     # Save JSON for reference
     with open("trending_output.json", "w", encoding="utf-8") as f:
-        json.dump({"daily": daily, "weekly": weekly, "timestamp": datetime.now(WIB).isoformat()}, f, ensure_ascii=False, indent=2)
+        json.dump({"daily": daily, "timestamp": datetime.now(WIB).isoformat()}, f, ensure_ascii=False, indent=2)
     
     print("📤 Sending to Discord...")
     send_discord(webhook_url, payload)
